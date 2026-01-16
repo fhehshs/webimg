@@ -1,0 +1,788 @@
+<!doctype html>
+<html lang="zh-TW" class="h-full">
+ <head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>電腦硬體英文閃卡</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="/_sdk/element_sdk.js"></script>
+  <script src="/_sdk/data_sdk.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&amp;family=Noto+Sans+TC:wght@400;500;700&amp;display=swap" rel="stylesheet">
+  <style>
+    body {
+      box-sizing: border-box;
+    }
+    
+    .font-tech {
+      font-family: 'Orbitron', sans-serif;
+    }
+    
+    .font-chinese {
+      font-family: 'Noto Sans TC', sans-serif;
+    }
+    
+    .flip-card {
+      perspective: 1000px;
+    }
+    
+    .flip-card-inner {
+      transition: transform 0.6s;
+      transform-style: preserve-3d;
+    }
+    
+    .flip-card.flipped .flip-card-inner {
+      transform: rotateY(180deg);
+    }
+    
+    .flip-card-front,
+    .flip-card-back {
+      backface-visibility: hidden;
+      -webkit-backface-visibility: hidden;
+    }
+    
+    .flip-card-back {
+      transform: rotateY(180deg);
+    }
+    
+    .glow-effect {
+      box-shadow: 0 0 20px rgba(0, 212, 255, 0.3);
+    }
+    
+    .progress-bar {
+      background: linear-gradient(90deg, #00d4ff, #0099cc);
+    }
+    
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(20px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    
+    .animate-fade-in {
+      animation: fadeIn 0.5s ease-out forwards;
+    }
+    
+    @keyframes pulse-glow {
+      0%, 100% { box-shadow: 0 0 20px rgba(0, 212, 255, 0.3); }
+      50% { box-shadow: 0 0 40px rgba(0, 212, 255, 0.6); }
+    }
+    
+    .pulse-glow {
+      animation: pulse-glow 2s ease-in-out infinite;
+    }
+  </style>
+  <style>@view-transition { navigation: auto; }</style>
+ </head>
+ <body class="h-full font-chinese">
+  <div id="app" class="h-full w-full overflow-auto"></div>
+  <script>
+    // Hardware vocabulary data
+    const vocabularyData = [
+      { english: "CPU", chinese: "中央處理器", description: "Central Processing Unit - 電腦的大腦" },
+      { english: "RAM", chinese: "隨機存取記憶體", description: "Random Access Memory - 暫存資料的記憶體" },
+      { english: "GPU", chinese: "圖形處理器", description: "Graphics Processing Unit - 處理圖形運算" },
+      { english: "SSD", chinese: "固態硬碟", description: "Solid State Drive - 快速儲存裝置" },
+      { english: "HDD", chinese: "傳統硬碟", description: "Hard Disk Drive - 機械式儲存裝置" },
+      { english: "Motherboard", chinese: "主機板", description: "連接所有電腦零件的電路板" },
+      { english: "Power Supply", chinese: "電源供應器", description: "提供電腦電力的裝置" },
+      { english: "Cooling Fan", chinese: "散熱風扇", description: "幫助電腦降溫的風扇" },
+      { english: "Network Card", chinese: "網路卡", description: "連接網路的硬體裝置" },
+      { english: "USB Port", chinese: "USB 連接埠", description: "Universal Serial Bus - 通用連接介面" }
+    ];
+
+    // App state
+    let currentStudent = null;
+    let currentView = 'login';
+    let currentCardIndex = 0;
+    let isFlipped = false;
+    let learnedCards = new Set();
+    let quizAnswers = [];
+    let quizQuestions = [];
+    let currentQuizIndex = 0;
+    let quizScore = 0;
+    let allRecords = [];
+    let isSubmitting = false;
+
+    // Default config
+    const defaultConfig = {
+      app_title: "電腦硬體英文學習",
+      login_title: "學生登入",
+      practice_button_text: "練習模式",
+      quiz_button_text: "開始測驗",
+      background_color: "#0a1628",
+      surface_color: "#1a2a4a",
+      text_color: "#e0f0ff",
+      primary_action_color: "#00d4ff",
+      secondary_action_color: "#0099cc"
+    };
+
+    // Shuffle array function
+    function shuffleArray(array) {
+      const shuffled = [...array];
+      for (let i = shuffled.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+      }
+      return shuffled;
+    }
+
+    // Render functions
+    function renderApp(config) {
+      const app = document.getElementById('app');
+      const cfg = { ...defaultConfig, ...config };
+      
+      app.style.backgroundColor = cfg.background_color;
+      app.style.color = cfg.text_color;
+      
+      let content = '';
+      
+      switch(currentView) {
+        case 'login':
+          content = renderLoginView(cfg);
+          break;
+        case 'menu':
+          content = renderMenuView(cfg);
+          break;
+        case 'practice':
+          content = renderPracticeView(cfg);
+          break;
+        case 'quiz':
+          content = renderQuizView(cfg);
+          break;
+        case 'result':
+          content = renderResultView(cfg);
+          break;
+        case 'records':
+          content = renderRecordsView(cfg);
+          break;
+      }
+      
+      app.innerHTML = content;
+      attachEventListeners(cfg);
+    }
+
+    function renderLoginView(cfg) {
+      return `
+        <div class="min-h-full flex items-center justify-center p-6">
+          <div class="w-full max-w-md animate-fade-in">
+            <div class="text-center mb-8">
+              <div class="inline-block p-4 rounded-full mb-4 glow-effect" style="background-color: ${cfg.surface_color}">
+                <svg class="w-16 h-16" viewBox="0 0 64 64" fill="none">
+                  <rect x="8" y="12" width="48" height="32" rx="2" stroke="${cfg.primary_action_color}" stroke-width="2" fill="none"/>
+                  <rect x="12" y="16" width="40" height="24" rx="1" fill="${cfg.surface_color}" stroke="${cfg.primary_action_color}" stroke-width="1"/>
+                  <rect x="24" y="44" width="16" height="4" fill="${cfg.primary_action_color}"/>
+                  <rect x="20" y="48" width="24" height="2" fill="${cfg.primary_action_color}"/>
+                  <circle cx="32" cy="28" r="8" stroke="${cfg.primary_action_color}" stroke-width="2" fill="none"/>
+                  <path d="M32 24 L32 32 L36 28" stroke="${cfg.primary_action_color}" stroke-width="2" fill="none"/>
+                </svg>
+              </div>
+              <h1 id="app-title" class="text-3xl font-bold font-tech mb-2" style="color: ${cfg.primary_action_color}">${cfg.app_title}</h1>
+              <p class="opacity-70">互動式閃卡學習系統</p>
+            </div>
+            
+            <div class="rounded-xl p-6 glow-effect" style="background-color: ${cfg.surface_color}">
+              <h2 id="login-title" class="text-xl font-bold mb-6 text-center">${cfg.login_title}</h2>
+              
+              <form id="login-form" class="space-y-4">
+                <div>
+                  <label class="block text-sm mb-2 opacity-80">班級</label>
+                  <input type="text" id="student-class" placeholder="例：301" required
+                    class="w-full px-4 py-3 rounded-lg border-2 focus:outline-none transition-all"
+                    style="background-color: ${cfg.background_color}; border-color: ${cfg.secondary_action_color}; color: ${cfg.text_color}">
+                </div>
+                
+                <div>
+                  <label class="block text-sm mb-2 opacity-80">座號</label>
+                  <input type="text" id="student-number" placeholder="例：15" required
+                    class="w-full px-4 py-3 rounded-lg border-2 focus:outline-none transition-all"
+                    style="background-color: ${cfg.background_color}; border-color: ${cfg.secondary_action_color}; color: ${cfg.text_color}">
+                </div>
+                
+                <div>
+                  <label class="block text-sm mb-2 opacity-80">姓名</label>
+                  <input type="text" id="student-name" placeholder="請輸入姓名" required
+                    class="w-full px-4 py-3 rounded-lg border-2 focus:outline-none transition-all"
+                    style="background-color: ${cfg.background_color}; border-color: ${cfg.secondary_action_color}; color: ${cfg.text_color}">
+                </div>
+                
+                <button type="submit"
+                  class="w-full py-4 rounded-lg font-bold text-lg transition-all hover:scale-105 mt-6"
+                  style="background-color: ${cfg.primary_action_color}; color: ${cfg.background_color}">
+                  登入開始學習
+                </button>
+              </form>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderMenuView(cfg) {
+      const progress = Math.round((learnedCards.size / vocabularyData.length) * 100);
+      
+      return `
+        <div class="min-h-full p-6">
+          <div class="max-w-2xl mx-auto animate-fade-in">
+            <div class="flex items-center justify-between mb-8">
+              <div>
+                <h1 id="app-title-menu" class="text-2xl font-bold font-tech" style="color: ${cfg.primary_action_color}">${cfg.app_title}</h1>
+                <p class="opacity-70 mt-1">歡迎，${currentStudent.name} 同學</p>
+              </div>
+              <button id="logout-btn" class="px-4 py-2 rounded-lg transition-all hover:opacity-80"
+                style="background-color: ${cfg.surface_color}; border: 1px solid ${cfg.secondary_action_color}">
+                登出
+              </button>
+            </div>
+            
+            <div class="rounded-xl p-6 mb-6 glow-effect" style="background-color: ${cfg.surface_color}">
+              <div class="flex items-center justify-between mb-3">
+                <span class="font-medium">學習進度</span>
+                <span class="font-tech" style="color: ${cfg.primary_action_color}">${learnedCards.size}/${vocabularyData.length}</span>
+              </div>
+              <div class="h-3 rounded-full overflow-hidden" style="background-color: ${cfg.background_color}">
+                <div class="h-full progress-bar rounded-full transition-all duration-500" style="width: ${progress}%"></div>
+              </div>
+            </div>
+            
+            <div class="grid gap-4">
+              <button id="practice-btn"
+                class="p-6 rounded-xl text-left transition-all hover:scale-102 hover:shadow-lg pulse-glow"
+                style="background-color: ${cfg.surface_color}">
+                <div class="flex items-center gap-4">
+                  <div class="w-14 h-14 rounded-full flex items-center justify-center" style="background-color: ${cfg.primary_action_color}">
+                    <svg class="w-7 h-7" fill="${cfg.background_color}" viewBox="0 0 24 24">
+                      <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"/>
+                    </svg>
+                  </div>
+                  <div>
+                    <h3 id="practice-text" class="text-xl font-bold">${cfg.practice_button_text}</h3>
+                    <p class="opacity-60 text-sm mt-1">翻轉閃卡學習單字</p>
+                  </div>
+                </div>
+              </button>
+              
+              <button id="quiz-btn"
+                class="p-6 rounded-xl text-left transition-all hover:scale-102 hover:shadow-lg"
+                style="background-color: ${cfg.surface_color}; border: 2px solid ${cfg.secondary_action_color}">
+                <div class="flex items-center gap-4">
+                  <div class="w-14 h-14 rounded-full flex items-center justify-center" style="background-color: ${cfg.secondary_action_color}">
+                    <svg class="w-7 h-7" fill="${cfg.background_color}" viewBox="0 0 24 24">
+                      <path d="M11 7h2v2h-2zm0 4h2v6h-2zm1-9C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z"/>
+                    </svg>
+                  </div>
+                  <div>
+                    <h3 id="quiz-text" class="text-xl font-bold">${cfg.quiz_button_text}</h3>
+                    <p class="opacity-60 text-sm mt-1">測試你的學習成果</p>
+                  </div>
+                </div>
+              </button>
+              
+              <button id="records-btn"
+                class="p-6 rounded-xl text-left transition-all hover:scale-102 hover:shadow-lg"
+                style="background-color: ${cfg.surface_color}; border: 1px solid ${cfg.secondary_action_color}40">
+                <div class="flex items-center gap-4">
+                  <div class="w-14 h-14 rounded-full flex items-center justify-center" style="background-color: ${cfg.background_color}; border: 2px solid ${cfg.secondary_action_color}">
+                    <svg class="w-7 h-7" fill="${cfg.secondary_action_color}" viewBox="0 0 24 24">
+                      <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 14l-5-5 1.41-1.41L12 14.17l7.59-7.59L21 8l-9 9z"/>
+                    </svg>
+                  </div>
+                  <div>
+                    <h3 class="text-xl font-bold">成績紀錄</h3>
+                    <p class="opacity-60 text-sm mt-1">查看所有測驗成績</p>
+                  </div>
+                </div>
+              </button>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderPracticeView(cfg) {
+      const card = vocabularyData[currentCardIndex];
+      const progress = Math.round(((currentCardIndex + 1) / vocabularyData.length) * 100);
+      
+      return `
+        <div class="min-h-full p-6">
+          <div class="max-w-lg mx-auto animate-fade-in">
+            <div class="flex items-center justify-between mb-6">
+              <button id="back-to-menu" class="flex items-center gap-2 opacity-70 hover:opacity-100 transition-all">
+                <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/>
+                </svg>
+                返回選單
+              </button>
+              <span class="font-tech" style="color: ${cfg.primary_action_color}">${currentCardIndex + 1}/${vocabularyData.length}</span>
+            </div>
+            
+            <div class="h-2 rounded-full overflow-hidden mb-8" style="background-color: ${cfg.surface_color}">
+              <div class="h-full progress-bar rounded-full transition-all duration-300" style="width: ${progress}%"></div>
+            </div>
+            
+            <div id="flashcard" class="flip-card cursor-pointer mb-8 ${isFlipped ? 'flipped' : ''}" style="height: 300px;">
+              <div class="flip-card-inner relative w-full h-full">
+                <div class="flip-card-front absolute w-full h-full rounded-2xl p-8 flex flex-col items-center justify-center glow-effect"
+                  style="background: linear-gradient(135deg, ${cfg.surface_color}, ${cfg.background_color})">
+                  <p class="text-sm opacity-60 mb-4">英文</p>
+                  <h2 class="text-4xl font-bold font-tech text-center" style="color: ${cfg.primary_action_color}">${card.english}</h2>
+                  <p class="text-sm opacity-50 mt-8">點擊翻轉卡片</p>
+                </div>
+                <div class="flip-card-back absolute w-full h-full rounded-2xl p-8 flex flex-col items-center justify-center"
+                  style="background: linear-gradient(135deg, ${cfg.primary_action_color}, ${cfg.secondary_action_color})">
+                  <p class="text-sm opacity-80 mb-2" style="color: ${cfg.background_color}">中文</p>
+                  <h2 class="text-3xl font-bold text-center mb-4" style="color: ${cfg.background_color}">${card.chinese}</h2>
+                  <p class="text-center opacity-80" style="color: ${cfg.background_color}">${card.description}</p>
+                </div>
+              </div>
+            </div>
+            
+            <div class="flex gap-4">
+              <button id="prev-card" class="flex-1 py-4 rounded-xl font-bold transition-all hover:scale-105 disabled:opacity-30"
+                style="background-color: ${cfg.surface_color}; border: 2px solid ${cfg.secondary_action_color}"
+                ${currentCardIndex === 0 ? 'disabled' : ''}>
+                ← 上一張
+              </button>
+              <button id="mark-learned" class="py-4 px-6 rounded-xl transition-all hover:scale-105"
+                style="background-color: ${learnedCards.has(currentCardIndex) ? cfg.primary_action_color : cfg.surface_color}; 
+                       color: ${learnedCards.has(currentCardIndex) ? cfg.background_color : cfg.text_color};
+                       border: 2px solid ${cfg.primary_action_color}">
+                ${learnedCards.has(currentCardIndex) ? '✓ 已學會' : '標記學會'}
+              </button>
+              <button id="next-card" class="flex-1 py-4 rounded-xl font-bold transition-all hover:scale-105 disabled:opacity-30"
+                style="background-color: ${cfg.primary_action_color}; color: ${cfg.background_color}"
+                ${currentCardIndex === vocabularyData.length - 1 ? 'disabled' : ''}>
+                下一張 →
+              </button>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderQuizView(cfg) {
+      if (quizQuestions.length === 0) {
+        quizQuestions = shuffleArray(vocabularyData).slice(0, 10);
+        currentQuizIndex = 0;
+        quizAnswers = [];
+        quizScore = 0;
+      }
+      
+      const question = quizQuestions[currentQuizIndex];
+      const options = generateOptions(question);
+      const progress = Math.round(((currentQuizIndex + 1) / quizQuestions.length) * 100);
+      
+      return `
+        <div class="min-h-full p-6">
+          <div class="max-w-lg mx-auto animate-fade-in">
+            <div class="flex items-center justify-between mb-6">
+              <button id="back-to-menu" class="flex items-center gap-2 opacity-70 hover:opacity-100 transition-all">
+                <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/>
+                </svg>
+                放棄測驗
+              </button>
+              <span class="font-tech" style="color: ${cfg.primary_action_color}">第 ${currentQuizIndex + 1} / ${quizQuestions.length} 題</span>
+            </div>
+            
+            <div class="h-2 rounded-full overflow-hidden mb-8" style="background-color: ${cfg.surface_color}">
+              <div class="h-full progress-bar rounded-full transition-all duration-300" style="width: ${progress}%"></div>
+            </div>
+            
+            <div class="rounded-2xl p-8 mb-6 text-center glow-effect" style="background-color: ${cfg.surface_color}">
+              <p class="text-sm opacity-60 mb-4">這個英文單字的中文意思是？</p>
+              <h2 class="text-4xl font-bold font-tech" style="color: ${cfg.primary_action_color}">${question.english}</h2>
+            </div>
+            
+            <div class="grid gap-3">
+              ${options.map((option, index) => `
+                <button class="quiz-option w-full py-4 px-6 rounded-xl text-left font-medium transition-all hover:scale-102"
+                  data-answer="${option.chinese}"
+                  style="background-color: ${cfg.surface_color}; border: 2px solid ${cfg.secondary_action_color}40">
+                  <span class="inline-block w-8 h-8 rounded-full text-center leading-8 mr-3" 
+                    style="background-color: ${cfg.background_color}; color: ${cfg.primary_action_color}">
+                    ${String.fromCharCode(65 + index)}
+                  </span>
+                  ${option.chinese}
+                </button>
+              `).join('')}
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    function generateOptions(correctAnswer) {
+      const options = [correctAnswer];
+      const otherCards = vocabularyData.filter(card => card.english !== correctAnswer.english);
+      const shuffledOthers = shuffleArray(otherCards);
+      
+      for (let i = 0; i < 3 && i < shuffledOthers.length; i++) {
+        options.push(shuffledOthers[i]);
+      }
+      
+      return shuffleArray(options);
+    }
+
+    function renderResultView(cfg) {
+      const percentage = Math.round((quizScore / quizQuestions.length) * 100);
+      let message = '';
+      let emoji = '';
+      
+      if (percentage >= 90) {
+        message = '太厲害了！你是電腦硬體專家！';
+        emoji = '🏆';
+      } else if (percentage >= 70) {
+        message = '做得很好！繼續加油！';
+        emoji = '🌟';
+      } else if (percentage >= 50) {
+        message = '還不錯，再多練習一下吧！';
+        emoji = '💪';
+      } else {
+        message = '需要多多練習喔！';
+        emoji = '📚';
+      }
+      
+      return `
+        <div class="min-h-full flex items-center justify-center p-6">
+          <div class="w-full max-w-md text-center animate-fade-in">
+            <div class="text-6xl mb-6">${emoji}</div>
+            <h1 class="text-3xl font-bold mb-4" style="color: ${cfg.primary_action_color}">測驗完成！</h1>
+            
+            <div class="rounded-2xl p-8 mb-6 glow-effect" style="background-color: ${cfg.surface_color}">
+              <div class="text-6xl font-bold font-tech mb-2" style="color: ${cfg.primary_action_color}">${percentage}%</div>
+              <p class="text-xl mb-4">${quizScore} / ${quizQuestions.length} 題答對</p>
+              <p class="opacity-70">${message}</p>
+              
+              <div class="mt-6 pt-6" style="border-top: 1px solid ${cfg.secondary_action_color}40">
+                <p class="text-sm opacity-60">學生：${currentStudent.class}班 ${currentStudent.number}號 ${currentStudent.name}</p>
+                <p class="text-sm opacity-60 mt-1">成績已儲存至記錄</p>
+              </div>
+            </div>
+            
+            <div class="grid gap-3">
+              <button id="retry-quiz" class="w-full py-4 rounded-xl font-bold transition-all hover:scale-105"
+                style="background-color: ${cfg.primary_action_color}; color: ${cfg.background_color}">
+                再測驗一次
+              </button>
+              <button id="back-to-menu" class="w-full py-4 rounded-xl font-bold transition-all hover:scale-105"
+                style="background-color: ${cfg.surface_color}; border: 2px solid ${cfg.secondary_action_color}">
+                返回選單
+              </button>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderRecordsView(cfg) {
+      const studentRecords = allRecords.filter(r => 
+        r.student_class === currentStudent.class && 
+        r.student_number === currentStudent.number &&
+        r.student_name === currentStudent.name
+      ).sort((a, b) => new Date(b.quiz_date) - new Date(a.quiz_date));
+      
+      return `
+        <div class="min-h-full p-6">
+          <div class="max-w-2xl mx-auto animate-fade-in">
+            <div class="flex items-center justify-between mb-6">
+              <button id="back-to-menu" class="flex items-center gap-2 opacity-70 hover:opacity-100 transition-all">
+                <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/>
+                </svg>
+                返回選單
+              </button>
+              <h1 class="font-bold font-tech" style="color: ${cfg.primary_action_color}">成績紀錄</h1>
+            </div>
+            
+            <div class="rounded-xl p-4 mb-6" style="background-color: ${cfg.surface_color}">
+              <p class="text-center">
+                <span class="opacity-60">學生：</span>
+                <span class="font-bold">${currentStudent.class}班 ${currentStudent.number}號 ${currentStudent.name}</span>
+              </p>
+            </div>
+            
+            ${studentRecords.length === 0 ? `
+              <div class="rounded-xl p-12 text-center" style="background-color: ${cfg.surface_color}">
+                <div class="text-4xl mb-4">📝</div>
+                <p class="opacity-60">尚無測驗紀錄</p>
+                <p class="text-sm opacity-40 mt-2">完成測驗後，成績會自動記錄在這裡</p>
+              </div>
+            ` : `
+              <div class="space-y-3">
+                ${studentRecords.map((record, index) => {
+                  const percentage = Math.round((record.quiz_score / record.total_questions) * 100);
+                  const date = new Date(record.quiz_date);
+                  const dateStr = date.toLocaleDateString('zh-TW', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+                  
+                  return `
+                    <div class="rounded-xl p-4 flex items-center justify-between" style="background-color: ${cfg.surface_color}">
+                      <div class="flex items-center gap-4">
+                        <div class="w-10 h-10 rounded-full flex items-center justify-center font-bold"
+                          style="background-color: ${percentage >= 70 ? cfg.primary_action_color : cfg.secondary_action_color}; color: ${cfg.background_color}">
+                          ${index + 1}
+                        </div>
+                        <div>
+                          <p class="font-bold">${record.quiz_score}/${record.total_questions} 題</p>
+                          <p class="text-sm opacity-60">${dateStr}</p>
+                        </div>
+                      </div>
+                      <div class="text-2xl font-bold font-tech" style="color: ${percentage >= 70 ? cfg.primary_action_color : cfg.secondary_action_color}">
+                        ${percentage}%
+                      </div>
+                    </div>
+                  `;
+                }).join('')}
+              </div>
+            `}
+          </div>
+        </div>
+      `;
+    }
+
+    function attachEventListeners(cfg) {
+      // Login form
+      const loginForm = document.getElementById('login-form');
+      if (loginForm) {
+        loginForm.addEventListener('submit', (e) => {
+          e.preventDefault();
+          currentStudent = {
+            class: document.getElementById('student-class').value.trim(),
+            number: document.getElementById('student-number').value.trim(),
+            name: document.getElementById('student-name').value.trim()
+          };
+          currentView = 'menu';
+          renderApp(window.elementSdk?.config || defaultConfig);
+        });
+      }
+      
+      // Logout
+      const logoutBtn = document.getElementById('logout-btn');
+      if (logoutBtn) {
+        logoutBtn.addEventListener('click', () => {
+          currentStudent = null;
+          currentView = 'login';
+          learnedCards.clear();
+          renderApp(window.elementSdk?.config || defaultConfig);
+        });
+      }
+      
+      // Navigation buttons
+      const practiceBtn = document.getElementById('practice-btn');
+      if (practiceBtn) {
+        practiceBtn.addEventListener('click', () => {
+          currentView = 'practice';
+          currentCardIndex = 0;
+          isFlipped = false;
+          renderApp(window.elementSdk?.config || defaultConfig);
+        });
+      }
+      
+      const quizBtn = document.getElementById('quiz-btn');
+      if (quizBtn) {
+        quizBtn.addEventListener('click', () => {
+          quizQuestions = [];
+          currentView = 'quiz';
+          renderApp(window.elementSdk?.config || defaultConfig);
+        });
+      }
+      
+      const recordsBtn = document.getElementById('records-btn');
+      if (recordsBtn) {
+        recordsBtn.addEventListener('click', () => {
+          currentView = 'records';
+          renderApp(window.elementSdk?.config || defaultConfig);
+        });
+      }
+      
+      // Back to menu
+      const backToMenuBtns = document.querySelectorAll('#back-to-menu');
+      backToMenuBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+          currentView = 'menu';
+          quizQuestions = [];
+          renderApp(window.elementSdk?.config || defaultConfig);
+        });
+      });
+      
+      // Flashcard flip
+      const flashcard = document.getElementById('flashcard');
+      if (flashcard) {
+        flashcard.addEventListener('click', () => {
+          isFlipped = !isFlipped;
+          flashcard.classList.toggle('flipped');
+        });
+      }
+      
+      // Card navigation
+      const prevCard = document.getElementById('prev-card');
+      if (prevCard) {
+        prevCard.addEventListener('click', () => {
+          if (currentCardIndex > 0) {
+            currentCardIndex--;
+            isFlipped = false;
+            renderApp(window.elementSdk?.config || defaultConfig);
+          }
+        });
+      }
+      
+      const nextCard = document.getElementById('next-card');
+      if (nextCard) {
+        nextCard.addEventListener('click', () => {
+          if (currentCardIndex < vocabularyData.length - 1) {
+            currentCardIndex++;
+            isFlipped = false;
+            renderApp(window.elementSdk?.config || defaultConfig);
+          }
+        });
+      }
+      
+      // Mark as learned
+      const markLearned = document.getElementById('mark-learned');
+      if (markLearned) {
+        markLearned.addEventListener('click', () => {
+          if (learnedCards.has(currentCardIndex)) {
+            learnedCards.delete(currentCardIndex);
+          } else {
+            learnedCards.add(currentCardIndex);
+          }
+          renderApp(window.elementSdk?.config || defaultConfig);
+        });
+      }
+      
+      // Quiz options
+      const quizOptions = document.querySelectorAll('.quiz-option');
+      quizOptions.forEach(option => {
+        option.addEventListener('click', async () => {
+          const selectedAnswer = option.dataset.answer;
+          const correctAnswer = quizQuestions[currentQuizIndex].chinese;
+          
+          if (selectedAnswer === correctAnswer) {
+            quizScore++;
+          }
+          
+          quizAnswers.push({
+            question: quizQuestions[currentQuizIndex],
+            selected: selectedAnswer,
+            correct: selectedAnswer === correctAnswer
+          });
+          
+          if (currentQuizIndex < quizQuestions.length - 1) {
+            currentQuizIndex++;
+            renderApp(window.elementSdk?.config || defaultConfig);
+          } else {
+            // Quiz finished - save score
+            await saveQuizScore();
+            currentView = 'result';
+            renderApp(window.elementSdk?.config || defaultConfig);
+          }
+        });
+      });
+      
+      // Retry quiz
+      const retryQuiz = document.getElementById('retry-quiz');
+      if (retryQuiz) {
+        retryQuiz.addEventListener('click', () => {
+          quizQuestions = [];
+          currentView = 'quiz';
+          renderApp(window.elementSdk?.config || defaultConfig);
+        });
+      }
+    }
+
+    async function saveQuizScore() {
+      if (isSubmitting) return;
+      
+      if (allRecords.length >= 999) {
+        console.warn('已達到記錄上限');
+        return;
+      }
+      
+      isSubmitting = true;
+      
+      const record = {
+        student_class: currentStudent.class,
+        student_number: currentStudent.number,
+        student_name: currentStudent.name,
+        quiz_score: quizScore,
+        total_questions: quizQuestions.length,
+        quiz_date: new Date().toISOString()
+      };
+      
+      if (window.dataSdk) {
+        const result = await window.dataSdk.create(record);
+        if (!result.isOk) {
+          console.error('儲存成績失敗');
+        }
+      }
+      
+      isSubmitting = false;
+    }
+
+    // Data handler
+    const dataHandler = {
+      onDataChanged(data) {
+        allRecords = data;
+      }
+    };
+
+    // Element handler
+    const elementHandler = {
+      defaultConfig,
+      async onConfigChange(config) {
+        renderApp(config);
+      },
+      mapToCapabilities(config) {
+        return {
+          recolorables: [
+            {
+              get: () => config.background_color || defaultConfig.background_color,
+              set: (value) => window.elementSdk.setConfig({ background_color: value })
+            },
+            {
+              get: () => config.surface_color || defaultConfig.surface_color,
+              set: (value) => window.elementSdk.setConfig({ surface_color: value })
+            },
+            {
+              get: () => config.text_color || defaultConfig.text_color,
+              set: (value) => window.elementSdk.setConfig({ text_color: value })
+            },
+            {
+              get: () => config.primary_action_color || defaultConfig.primary_action_color,
+              set: (value) => window.elementSdk.setConfig({ primary_action_color: value })
+            },
+            {
+              get: () => config.secondary_action_color || defaultConfig.secondary_action_color,
+              set: (value) => window.elementSdk.setConfig({ secondary_action_color: value })
+            }
+          ],
+          borderables: [],
+          fontEditable: undefined,
+          fontSizeable: undefined
+        };
+      },
+      mapToEditPanelValues(config) {
+        return new Map([
+          ["app_title", config.app_title || defaultConfig.app_title],
+          ["login_title", config.login_title || defaultConfig.login_title],
+          ["practice_button_text", config.practice_button_text || defaultConfig.practice_button_text],
+          ["quiz_button_text", config.quiz_button_text || defaultConfig.quiz_button_text]
+        ]);
+      }
+    };
+
+    // Initialize
+    async function init() {
+      if (window.elementSdk) {
+        window.elementSdk.init(elementHandler);
+      }
+      
+      if (window.dataSdk) {
+        await window.dataSdk.init(dataHandler);
+      }
+      
+      renderApp(window.elementSdk?.config || defaultConfig);
+    }
+
+    init();
+  </script>
+ <script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'9bea294471a54a88',t:'MTc2ODUzMDMxNS4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+</html>
